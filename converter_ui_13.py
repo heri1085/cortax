@@ -1,21 +1,3 @@
-# --- Tambahkan kode ini di bagian paling atas file ---
-import subprocess
-import sys
-
-def install_library(package):
-    try:
-        __import__(package)
-    except ImportError:
-        print(f"{package} tidak ditemukan. Mencoba menginstal...")
-        # Pastikan pip ada sebelum mencoba instalasi
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-        print(f"{package} berhasil diinstal.")
-
-# Panggil fungsi untuk library yang dibutuhkan
-install_library("pandas")
-install_library("openpyxl")
-# Note: datetime adalah modul bawaan (built-in) Python, tidak perlu diinstal via pip
-
 import datetime
 import pandas as pd
 import xml.etree.ElementTree as ET
