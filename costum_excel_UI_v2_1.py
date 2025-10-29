@@ -26,7 +26,12 @@ import json # Diperlukan untuk membaca JSON secrets
 # --- DATA KONFIGURASI GOOGLE DRIVE ---
 # Mengambil kredensial dari file .streamlit/secrets.toml
 # Ini adalah pengganti FOLDER_OUTPUT_LOKAL
-GOOGLE_DRIVE_FOLDER_ID = st.secrets["google_drive_folder_id"] 
+
+if "google_drive_folder_id" not in st.secrets:
+    st.error("❌ Kunci `google_drive_folder_id` tidak ditemukan di secrets.toml.")
+else:
+    GOOGLE_DRIVE_FOLDER_ID = st.secrets["google_drive_folder_id"]
+
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 @st.cache_resource
