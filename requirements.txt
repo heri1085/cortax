@@ -1,17 +1,26 @@
 # requirements.txt
 # File ini mencantumkan semua library Python yang dibutuhkan aplikasi Streamlit Anda.
 
+# --- STREAMLIT & DATA PROCESSING (Library yang sudah ada) ---
 # Streamlit - Untuk menjalankan antarmuka web
 streamlit
 
 # Pandas - Untuk manipulasi dan pemrosesan data Excel
 pandas
 
-# NumPy - Digunakan oleh Pandas untuk operasi numerik
-numpy
-
 # openpyxl - Library yang digunakan Pandas untuk membaca file Excel (.xlsx)
 openpyxl
 
 # xlsxwriter - Library yang digunakan Pandas untuk menulis/menyimpan file Excel (.xlsx)
 xlsxwriter
+
+# numpy - Digunakan oleh Pandas untuk operasi numerik (jika diperlukan)
+numpy
+
+
+# --- GOOGLE DRIVE API (Library Tambahan) ---
+# google-auth - Untuk otentikasi menggunakan Service Account (dari secrets.toml)
+google-auth
+
+# google-api-python-client - Library inti untuk berinteraksi dengan Google Drive API
+google-api-python-client
