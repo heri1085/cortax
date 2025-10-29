@@ -24,3 +24,6 @@ google-auth
 
 # google-api-python-client - Library inti untuk berinteraksi dengan Google Drive API
 google-api-python-client
+
+google-auth-httplib2
+google-auth-oauthlib
