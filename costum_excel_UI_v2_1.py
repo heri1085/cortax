@@ -51,19 +51,22 @@ def authenticate_gdrive():
 def upload_file_to_drive(service, file_bytes, filename, folder_id):
     """Mengupload data file (bytes) ke Google Drive."""
     try:
-        # Metadata file, termasuk nama dan folder tujuan
-        file_metadata = {'name': filename, 'parents': [folder_id]}
+        # Metadata file - HAPUS 'parents' untuk upload ke Shared Drive
+        file_metadata = {'name': filename}
         
-        # Menggunakan io.BytesIO untuk membuat media dari bytes in-memory
+        # Untuk Shared Drive, tambahkan supportsAllDrives=True
         media = MediaIoBaseUpload(io.BytesIO(file_bytes),
                                   mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                                   resumable=True)
 
-        # Melakukan upload dan meminta webViewLink untuk konfirmasi
-        file = service.files().create(body=file_metadata,
-                                      media_body=media,
-                                      fields='webViewLink').execute()
-                                      
+        # Upload ke Shared Drive
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='webViewLink',
+            supportsAllDrives=True  # ← PENTING untuk Shared Drive
+        ).execute()
+                          
         return True, f"File berhasil diupload. [Lihat di Drive]({file.get('webViewLink')})"
     except Exception as e:
         return False, f"Gagal mengupload file ke Google Drive. Error: {e}"
