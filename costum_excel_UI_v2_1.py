@@ -1,5 +1,7 @@
 # --- costum_excel_UI10.py (Streamlit App Lengkap - Minimalis UI & Logika Kode 4) ---
 
+# costum_excel_UI_v2_1.py
+
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -7,6 +9,59 @@ from datetime import datetime
 import os
 import io
 import re 
+
+# --- IMPORTS GOOGLE DRIVE BARU ---
+# Diperlukan untuk otentikasi dan interaksi API Google
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import json # Diperlukan untuk membaca JSON secrets
+# -----------------------------------
+
+# >>> PENTING: IMPORT FUNGSI KONVERSI DI AWAL FILE <<<
+# ... (Sisanya dari blok try/except import converter_ui_13) ...
+
+# --- DATA PERUSAHAAN ... (kode COMPANY_DATA) ---
+
+# --- DATA KONFIGURASI GOOGLE DRIVE ---
+# Mengambil kredensial dari file .streamlit/secrets.toml
+# Ini adalah pengganti FOLDER_OUTPUT_LOKAL
+GOOGLE_DRIVE_FOLDER_ID = st.secrets["google_drive_folder_id"] 
+SCOPES = ['https://www.googleapis.com/auth/drive']
+
+@st.cache_resource
+def authenticate_gdrive():
+    """Mengotentikasi ke Google Drive menggunakan Service Account dari Streamlit Secrets."""
+    try:
+        # Mengambil credentials dari st.secrets["gcp_service_account"]
+        info = dict(st.secrets["gcp_service_account"])
+        credentials = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+        
+        # Membangun service Drive API
+        return build('drive', 'v3', credentials=credentials)
+    except Exception as e:
+        st.error(f"❌ Gagal otentikasi Google Drive. Pastikan `secrets.toml` benar. Error: {e}")
+        return None
+
+def upload_file_to_drive(service, file_bytes, filename, folder_id):
+    """Mengupload data file (bytes) ke Google Drive."""
+    try:
+        # Metadata file, termasuk nama dan folder tujuan
+        file_metadata = {'name': filename, 'parents': [folder_id]}
+        
+        # Menggunakan io.BytesIO untuk membuat media dari bytes in-memory
+        media = MediaIoBaseUpload(io.BytesIO(file_bytes),
+                                  mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                  resumable=True)
+
+        # Melakukan upload dan meminta webViewLink untuk konfirmasi
+        file = service.files().create(body=file_metadata,
+                                      media_body=media,
+                                      fields='webViewLink').execute()
+                                      
+        return True, f"File berhasil diupload. [Lihat di Drive]({file.get('webViewLink')})"
+    except Exception as e:
+        return False, f"Gagal mengupload file ke Google Drive. Error: {e}"
 
 # >>> PENTING: IMPORT FUNGSI KONVERSI DI AWAL FILE <<<
 try:
@@ -39,7 +94,7 @@ NAMA_FILE_DASAR = 'Custom_Column.xlsx'
 NAMA_SHEET_FAKTUR = 'Faktur'
 NAMA_SHEET_DETAIL = 'DetailFaktur'
 HEADER_ROW_DATA = 6
-FOLDER_OUTPUT_LOKAL = "D:/HasilFaktur"
+#FOLDER_OUTPUT_LOKAL = "D:/HasilFaktur"
 JUMLAH_PER_HALAMAN = 20 
 
 # Daftar kolom yang harus dipastikan berformat TEXT (string)
@@ -245,225 +300,6 @@ def to_excel_bytes(df_faktur, df_detail):
         df_detail.to_excel(writer, sheet_name=NAMA_SHEET_DETAIL, index=False)
     return output.getvalue()
 
-# Fungsi untuk membaca file ke bytes
-def to_file_bytes(file_path):
-    try:
-        if not os.path.exists(file_path):
-             return None
-             
-        with open(file_path, 'rb') as f:
-            return f.read()
-    except Exception:
-        return None
-
-# Fungsi untuk mengambil daftar file
-def ambil_daftar_file(folder_path):
-    import re
-    if not os.path.exists(folder_path):
-        return pd.DataFrame(columns=["Tanggal", "Waktu", "Nama File", "Alamat Folder", "Tanggal_Date", "Tanggal_Waktu_Sort"])
-        
-    file_list = []
-    for file_name in os.listdir(folder_path):
-        # Memastikan hanya file output yang diproses
-        if file_name.lower().endswith(NAMA_FILE_DASAR.lower()) and "output" not in file_name.lower():
-            file_path = os.path.join(folder_path, file_name)
-            if os.path.isfile(file_path):
-                tanggal_display = "Tidak Diketahui"
-                waktu_display = "00:00:00"
-                tanggal_obj = None
-
-                try:
-                    match = re.search(r'(\d{6}[\s_]\d{6})', file_name) 
-                    if match:
-                        timestamp_raw = match.group(1)
-                        timestamp_str = timestamp_raw.replace('_', ' ')
-                        
-                        tanggal_obj = datetime.strptime(timestamp_str, "%d%m%y %H%M%S")
-                        tanggal_display = tanggal_obj.strftime("%d/%m/%Y")
-                        waktu_display = tanggal_obj.strftime("%H:%M:%S") 
-                except Exception:
-                    pass
-                
-                sort_value = tanggal_obj if tanggal_obj else datetime.min
-                    
-                file_list.append({
-                    "Tanggal": tanggal_display,
-                    "Waktu": waktu_display, 
-                    "Nama File": file_name,
-                    "Alamat Folder": folder_path, 
-                    "Tanggal_Date": tanggal_obj.date() if tanggal_obj else datetime.min.date(),
-                    "Tanggal_Waktu_Sort": sort_value
-                })
-                
-    df_files = pd.DataFrame(file_list)
-    
-    if not df_files.empty:
-        df_files = df_files.sort_values(by="Tanggal_Waktu_Sort", ascending=False).reset_index(drop=True)
-        
-    return df_files
-
-# --- Fungsi Paginasi dengan Tampilan Minimalis ---
-def tampilkan_tabel_dengan_paginasi(df, jumlah_per_halaman, selected_company_name):
-    if 'current_page' not in st.session_state:
-        st.session_state.current_page = 1
-        
-    total_rows = len(df)
-    total_halaman = (total_rows - 1) // jumlah_per_halaman + 1
-    
-    if total_halaman > 0:
-        if st.session_state.current_page > total_halaman:
-            st.session_state.current_page = total_halaman
-        if st.session_state.current_page < 1:
-            st.session_state.current_page = 1
-
-    halaman = st.session_state.current_page 
-    
-    if total_rows == 0:
-        st.info("Tidak ada data untuk ditampilkan.")
-        return
-
-    st.caption(f"Menampilkan halaman {halaman} dari {total_halaman} (Total {total_rows} File)")
-    
-    # Navigasi paginasi di atas tabel
-    col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 8])
-    
-    with col_nav1:
-        if st.button("⬅️", disabled=halaman == 1, key="prev_btn", help="Halaman Sebelumnya"):
-            st.session_state.current_page -= 1
-            st.rerun()
-            
-    with col_nav2:
-        if st.button("➡️", disabled=halaman == total_halaman, key="next_btn", help="Halaman Berikutnya"):
-            st.session_state.current_page += 1
-            st.rerun()
-            
-    # Tampilkan Header Tabel (CSS Minimalis)
-    st.markdown("""
-        <style>
-        /* Gaya baru untuk tampilan lebih bersih */
-        .header-row { 
-            display: flex; 
-            font-weight: bold; 
-            border-bottom: 1px solid #ddd; /* Garis pemisah yang tipis */
-            padding: 8px 0; 
-            margin-bottom: 0px; 
-            font-size: 14px; 
-            color: #444; /* Warna teks yang tidak terlalu mencolok */
-        }
-        .col-no { flex: 0.8; text-align: center; } 
-        .col-tgl { flex: 1.5; } 
-        .col-waktu { flex: 1; } 
-        .col-nama { flex: 4; } 
-        .col-btn1 { flex: 1.5; text-align: center; } /* Konversi */
-        .col-btn2 { flex: 1.5; text-align: center; } /* Unduh XML */
-        .col-btn3 { flex: 1.5; text-align: center; } /* Unduh XLSX */
-        .row-item { 
-            display: flex; 
-            padding: 5px 0; 
-            border-bottom: 1px dashed #eee; /* Garis putus-putus */
-            align-items: center;
-        }
-        </style>
-        <div class="header-row">
-            <div class="col-no">No.</div>
-            <div class="col-tgl">Tanggal</div>
-            <div class="col-waktu">Waktu</div>
-            <div class="col-nama">Nama File XLSX</div>
-            <div class="col-btn1">Konversi</div>
-            <div class="col-btn2">Unduh XML</div>
-            <div class="col-btn3">Unduh XLSX</div>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # Data baris
-    mulai = (halaman - 1) * jumlah_per_halaman
-    df_slice = df.iloc[mulai: mulai + jumlah_per_halaman]
-    
-    for index_in_slice, (original_index, row) in enumerate(df_slice.iterrows()):
-        global_row_num = mulai + index_in_slice + 1
-        
-        # Gunakan st.markdown untuk membungkus baris agar CSS kustom diterapkan
-        st.markdown('<div class="row-item">', unsafe_allow_html=True)
-        
-        col0, col1, col2, col3, col4, col5, col6 = st.columns([0.8, 1.5, 1, 4, 1.5, 1.5, 1.5])
-        
-        col0.markdown(f'<div class="col-no">{global_row_num}</div>', unsafe_allow_html=True)
-        col1.markdown(f'<div class="col-tgl">{row["Tanggal"]}</div>', unsafe_allow_html=True)
-        col2.markdown(f'<div class="col-waktu">{row["Waktu"]}</div>', unsafe_allow_html=True)
-        col3.markdown(f'<div class="col-nama" style="font-size: 13px;">{row["Nama File"]}</div>', unsafe_allow_html=True)
-        
-        # Path File
-        xlsx_name = row["Nama File"]
-        excel_path = os.path.join(row["Alamat Folder"], xlsx_name)
-        xlsx_exists = os.path.exists(excel_path)
-        
-        xlsx_name_without_ext = os.path.splitext(xlsx_name)[0]
-        PREDICTABLE_XML_NAME = f"{xlsx_name_without_ext}.xml"
-        output_xml_path = os.path.join(row["Alamat Folder"], PREDICTABLE_XML_NAME)
-        xml_exists = os.path.exists(output_xml_path)
-
-        # Tombol Konversi ke XML (col4)
-        with col4:
-             if st.button("⚙️ Konversi", key=f"konversi_{original_index}", disabled=xml_exists or 'convert_to_xml' not in globals()):
-                try:
-                    with st.spinner('Memproses konversi ke XML...'):
-                        success, message = convert_to_xml(excel_path, output_xml_path, selected_company_name)
-                    
-                    if success:
-                        st.toast(f"✅ Konversi berhasil!", icon='⚙️')
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Gagal konversi: {message}")
-                except Exception as e:
-                    st.error(f"Terjadi kesalahan konversi XML: {e}")
-        
-        # Tombol Unduh XML (col5)
-        with col5:
-            if xml_exists:
-                xml_data = to_file_bytes(output_xml_path) 
-                st.download_button(
-                    label="⬇️ XML", # Label yang lebih minimalis
-                    data=xml_data if xml_data is not None else "",
-                    file_name=PREDICTABLE_XML_NAME,
-                    mime="application/xml",
-                    key=f"download_xml_{original_index}", 
-                    disabled=xml_data is None
-                )
-            else:
-                st.button("Belum Ada", disabled=True, key=f"xml_na_{original_index}")
-             
-        # Tombol Unduh XLSX (col6) - Trigger/Download
-        with col6:
-            if xlsx_exists:
-                btn_key = f"trigger_xlsx_download_{original_index}"
-                
-                if btn_key not in st.session_state:
-                    st.session_state[btn_key] = False
-                
-                # Tombol Download sesungguhnya
-                if st.session_state[btn_key] and f"xlsx_data_{original_index}" in st.session_state:
-                    st.download_button(
-                        label="⬇️ Unduh", # Label minimalis
-                        data=st.session_state[f"xlsx_data_{original_index}"],
-                        file_name=xlsx_name,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"xlsx_btn_2_{original_index}"
-                    )
-                    # Reset status
-                    del st.session_state[f"xlsx_data_{original_index}"]
-                    st.session_state[btn_key] = False
-                else:
-                    # Tombol Trigger
-                    if st.button("Muat File", key=f"xlsx_btn_1_{original_index}", help="Klik ini untuk memuat data ke memori, kemudian klik tombol unduh yang muncul."):
-                        xlsx_data = to_file_bytes(excel_path)
-                        st.session_state[f"xlsx_data_{original_index}"] = xlsx_data
-                        st.session_state[btn_key] = True
-                        st.rerun()
-            else:
-                 st.button("Hilang", disabled=True, key=f"xlsx_na_{original_index}")
-                 
-        st.markdown('</div>', unsafe_allow_html=True) # Penutup row-item
-
 
 # --- STREAMLIT UTAMA ---
 def main():
@@ -534,67 +370,47 @@ def main():
                     company_prefix = re.sub(r'[\.\s]', '_', selected_company_name).replace('__', '_')
                     NAMA_FILE_OUTPUT = f"{company_prefix}_{timestamp} {NAMA_FILE_DASAR}"
                     
-                    os.makedirs(FOLDER_OUTPUT_LOKAL, exist_ok=True)
+                    # KODE BARU (PENGGANTI KODE LAMA)
+
+                    # 1. Simpan ke buffer memory (bytes)
+                    # File harus diubah menjadi bytes agar dapat ditransfer (di-upload atau di-download)
+                    excel_data_bytes = to_excel_bytes(df_faktur, df_detail) # Asumsi fungsi ini sudah didefinisikan untuk membuat bytes
+
+                    # 2. Inisiasi Service dan Upload ke Google Drive
+                    drive_service = authenticate_gdrive() # Memanggil fungsi otentikasi GDrive dari st.secrets
+                    st.info("Sedang mengupload file ke Google Drive...")
+
+                    if drive_service:
+                        # Memanggil fungsi upload, menggunakan bytes (bukan path) dan ID folder dari secrets
+                        success, message = upload_file_to_drive(
+                            drive_service,
+                            excel_data_bytes, # Data file dalam bentuk bytes (memori)
+                            NAMA_FILE_OUTPUT, # Nama file yang akan terlihat di Drive
+                            GOOGLE_DRIVE_FOLDER_ID # ID folder tujuan di Drive
+                        )
                         
-                    file_path = os.path.join(FOLDER_OUTPUT_LOKAL, NAMA_FILE_OUTPUT)
-                    
-                    with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
-                        df_faktur.to_excel(writer, sheet_name=NAMA_SHEET_FAKTUR, index=False)
-                        df_detail.to_excel(writer, sheet_name=NAMA_SHEET_DETAIL, index=False)
-                        
-                    # Tampilkan feedback minimalis
-                    st.toast('✅ PROSES BERHASIL!', icon='🎉')
-                    
-                    with st.container(border=True): 
-                        st.success(f"🎉 **File BERHASIL DIPROSES!**")
-                        st.markdown(f"File output **{NAMA_FILE_OUTPUT}** telah disimpan ke **`{FOLDER_OUTPUT_LOKAL}`** dan tersedia di bagian Riwayat.")
-                        
-                        # Tampilkan preview singkat hasil
-                        st.markdown("**Preview Hasil Faktur:**")
-                        st.dataframe(df_faktur.head(1).style.set_properties(**{'font-size': '8pt'}), hide_index=True)
-                        st.rerun() # Rerun untuk update riwayat
+                        with st.container(border=True): 
+                            if success:
+                                st.balloons()
+                                st.success(f"🎉 **File BERHASIL DIPROSES dan diupload ke Google Drive!**")
+                                st.markdown(message) # Menampilkan link ke file yang sudah terupload
+                            else:
+                                st.error(f"❌ Proses Gagal Upload ke Google Drive. {message}")
+
+                    # 3. Sediakan tombol download lokal sebagai backup (menggunakan bytes dari memori)
+                    st.download_button(
+                        label="⬇️ Unduh File E-Faktur XLSX (Lokal)",
+                        data=excel_data_bytes,
+                        file_name=NAMA_FILE_OUTPUT,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="final_xlsx_download"
+                    )
 
             except KeyError as e:
                 st.error(f"❌ ERROR: Kolom sumber '**{e.args[0]}**' tidak ditemukan di file data Anda.")
             except Exception as e:
                 st.error(f"❌ Terjadi Kesalahan umum saat memproses data: {e}")
                 
-
-    # --- 2. Riwayat File (Minimalis & Filter) ---
-    st.divider()
-    st.subheader("2. Riwayat File, Konversi & Unduh")
-    
-    df_file_history = ambil_daftar_file(FOLDER_OUTPUT_LOKAL)
-    
-    if df_file_history.empty:
-        st.info(f"Belum ada file yang diproses di folder `{FOLDER_OUTPUT_LOKAL}`.")
-    else:
-        # --- Bagian Filter Tanggal ---
-        min_date = df_file_history['Tanggal_Date'].min()
-        max_date = df_file_history['Tanggal_Date'].max()
-        
-        col_date1, col_date2, _ = st.columns([1, 1, 3])
-        
-        with col_date1:
-            start_date = st.date_input("Filter Tanggal Mulai", value=min_date, min_value=min_date, max_value=max_date, key="date_start_min")
-        
-        with col_date2:
-            end_date = st.date_input("Filter Tanggal Akhir", value=max_date, min_value=min_date, max_value=max_date, key="date_end_min")
-            
-        df_filtered = df_file_history[
-            (df_file_history['Tanggal_Date'] >= start_date) & 
-            (df_file_history['Tanggal_Date'] <= end_date)
-        ].copy()
-        
-        # Reset paginasi jika filter berubah
-        if 'last_filter_len' not in st.session_state or st.session_state.last_filter_len != len(df_filtered):
-            st.session_state.current_page = 1
-            st.session_state.last_filter_len = len(df_filtered)
-
-        if df_filtered.empty:
-            st.warning("Tidak ada file yang ditemukan dalam rentang tanggal yang dipilih.")
-        else:
-            tampilkan_tabel_dengan_paginasi(df_filtered, JUMLAH_PER_HALAMAN, selected_company_name)
 
 if __name__ == "__main__":
     main()
