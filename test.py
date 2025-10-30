@@ -9,6 +9,7 @@ import os
 import io
 import re 
 import xml.etree.ElementTree as ET
+import tempfile
 
 # --- IMPORTS GOOGLE DRIVE ---
 from google.oauth2 import service_account
@@ -62,13 +63,12 @@ def upload_file_to_drive(service, file_bytes, filename, folder_id):
             resumable=True
         )
 
-        # Upload ke Google Drive
+        # Upload ke Google Drive - PERBAIKAN: HAPUS includeItemsFromAllDrives
         file = service.files().create(
             body=file_metadata,
             media_body=media,
             fields='webViewLink',
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True
+            supportsAllDrives=True  # ← HANYA gunakan ini saja
         ).execute()
                           
         return True, f"File berhasil diupload. [Lihat di Drive]({file.get('webViewLink')})"
@@ -544,7 +544,6 @@ def main():
                     )
 
                     # Tombol download XML
-                    import tempfile
                     success, xml_bytes, xml_message = convert_excel_bytes_to_xml(excel_data_bytes, selected_company_name)
                     if success:
                         xml_filename = NAMA_FILE_OUTPUT.replace('.xlsx', '.xml')
