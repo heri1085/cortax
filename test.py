@@ -357,7 +357,7 @@ def convert_excel_bytes_to_xml(excel_bytes, company_name):
 
 # --- STREAMLIT UTAMA ---
 def main():
-    st.set_page_config(page_title="Alat Transformasi Data Faktur", layout="wide", page_icon="📊") 
+    st.set_page_config(page_title="Alat Convert Data Faktur", layout="wide", page_icon="📊") 
     
     # Inisialisasi session state
     if 'processed_data' not in st.session_state:
@@ -375,7 +375,7 @@ def main():
         st.title("📊 Menu Utama")
         menu_option = st.radio(
             "Pilih Menu:",
-            ["🏠 Transformasi Data", "🏢 Kelola Perusahaan"],
+            ["🏠 Convert Data", "🏢 Kelola Perusahaan"],
             index=0
         )
         
@@ -386,14 +386,14 @@ def main():
         st.caption("✅ Auto-download file")
         st.caption("✅ Validasi format data")
     
-    if menu_option == "🏠 Transformasi Data":
+    if menu_option == "🏠 Convert Data":
         show_data_transformation()
     else:
         show_company_management()
 
 def show_data_transformation():
-    """Menampilkan UI transformasi data"""
-    st.title("📄 Transformasi Data Faktur")
+    """Menampilkan UI Convert data"""
+    st.title("📄 Convert Data Faktur")
     st.markdown("Aplikasi untuk konversi file Excel kustom ke format E-Faktur yang terstruktur (XLSX & XML).")
     
     st.divider() 
