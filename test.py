@@ -1,5 +1,5 @@
 # costum_excel_UI_v2_1_with_company_add.py
-# File dengan fix sistem perusahaan yang benar
+# File dengan fix import XML dan sistem perusahaan yang benar
 
 import pandas as pd
 import numpy as np
@@ -9,6 +9,7 @@ import os
 import io
 import re 
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element, SubElement, tostring
 import tempfile
 import json
 import base64
