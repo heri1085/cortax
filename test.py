@@ -1,5 +1,5 @@
-# costum_excel_UI_v2_1_complete.py
-# File gabungan lengkap dengan Google Drive integration dan XML converter
+# costum_excel_UI_v2_1_simplified.py
+# File gabungan lengkap TANPA Google Drive integration
 
 import pandas as pd
 import numpy as np
@@ -10,249 +10,6 @@ import io
 import re 
 import xml.etree.ElementTree as ET
 import tempfile
-
-# --- IMPORTS GOOGLE DRIVE ---
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-
-# --- GOOGLE DRIVE CREDENTIALS (LANGSUNG DI DALAM KODE) ---
-GOOGLE_DRIVE_CREDENTIALS = {
-    "type": "service_account",
-    "project_id": "deep-wares-476608-k6",
-    "private_key_id": "d8493ad42b1550b48bd44229b1e27fcafb19198b",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDrtmbnGcGsiXPF\noqibYtd+dNdOnBbo8n1AOkM/nKfPi/WXQmFI4qVAQoGh8xigPprRdTYgzSkoDFpZ\nA4qDXqpoCkWf7mK1lHwEWVhgq7wbz/8F7jwai3e0q67y8+BOV5nK5ECVSo2i7I/e\naBJTf4FoOdPl1TQ4oKloIfAUZn9myhbOoNG7uDMqJyVrbE3unPwbpLWcLlgs47iN\nb7NA6MpYVdI/G5JNxwdccHoFxUHKJDOlXaoJvDRjvgYY+PnhrtFR+y7I/5J6DoJu\nSI4mb0ZFiqSPkp5N46OAmlvTSvc9oagRfeNhF+3HK9clO9l+UxVz9p/7vuQO3d+A\nz+xhPm6tAgMBAAECggEAFCDo664+5Dl+qe9of5Byv4lBw6Q/rpfai0wOZxW9HNOi\nXs7b2OoF25VyVX6ZaUG/XcipHSb370QSyQws3WgNnEHYTT6BrmjmKEbq7aJst2FN\nMVf1SP0E9Wg90eBylK4VY4aXX0hVDQcvh/oSKpA2YEyj5DoPMhDCNrLDOjLAiWnp\nio/COIzCmYH4npKOcy/thwiIDxc1oPMdJ76PhKB7hL43widoY8911uzmkFjocs/z\niBcFtcqB5A0yMWktWFy6pnT6CUqbu1tGLtjPSszcd5C4SvkkU2QuZfBBSls4syes\nL5Snw6cnArzAOZPwdD3Zbs50R1OeqKsXPSgQm6BiDwKBgQD+iQjzC6H5Kt3TAJT7\n1Ui0U/Grh2EDFnsVFWetCIznlFatnvGDpb5imTeXLxlaNbIsJ1+Vy6/xzHSfoDbC\nF4XMG3nbmLYO7lYwjWJpP/pXTRLOxlU3brrJ1MqpV+qT/AvLXfrJgID5SA6p/B9R\nXQZBnG9v8D9Ba1kFD/sZs0ifRwKBgQDtEaNz6OxXlKI3p+B9ufvZfut1gLhZZygd\nCXvbKuM7eT3yridszuBWV3bA+jzlX8bvaBog6/PNX0VFsSpit7MYO8KCRMX6qW4C\nPBCcK3PwEl917E4EBRSBG4InDXSx6q4Fibu3CSUAiC6VUy/4lKZWnRjCrwi0Wdax\nCDnyyENEawKBgQDNmk+6U2kw5els6YluqughkbUjAyXf4qblbvbiFIgNAAvMDxmz\nZ4yUBIOdAZSPA9S6ScuyKmgi/y4tSrMwsOOI7aDPO1nEUc0ZRvt5XQ6Qulc444gu\nUKldIx/ZDoUTqIK2cWGEpuKHeicuM9PwWx4UnZJ+bygJZfbwWepQ5jsBPQKBgCgb\n49uofNQUgZ2I+aJL5SBXKN8oeAgoO9Et2ZarGublDGYSsPjnx2zUP3NG4yarnazD\noCgRw53rkHzKDLHHArYG5lHD8PsHz2TxZJ4HfAYSFbSN1mU3ttBhJxQUYrn3SpoF\nQ40kLu54G+mHuYYFIF9nFNlbY82fpYMuMR+yYi8hAoGAZXcBT77pfWgNAKLDCsX3\nOkpIn5ilLtpyiNbMhnVbQihfcLXl41056W2z+I4JRcMxKJADjr/Yv+/0viT5KLdv\nqGt6pDX3J1FxlgIInj96yzBwrAX5d0ZudZFcLl1qrARTaE2B5YDsjhe938IGsOD3\nfok0XM8v/kUAbqtuQzs7zXQ=\n-----END PRIVATE KEY-----",
-    "client_email": "streamlit-drive-uploader@deep-wares-476608-k6.iam.gserviceaccount.com",
-    "client_id": "117217413653054694547",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/streamlit-drive-uploader%40deep-wares-476608-k6.iam.gserviceaccount.com",
-    "universe_domain": "googleapis.com"
-}
-
-# --- KONFIGURASI GOOGLE DRIVE ---
-GOOGLE_DRIVE_FOLDER_ID = "19x97EHOzCD5L0hXrBEgLIa-T80IHIxp_"
-SCOPES = ['https://www.googleapis.com/auth/drive']
-
-@st.cache_resource
-def authenticate_gdrive():
-    """Mengotentikasi ke Google Drive menggunakan credentials yang embedded."""
-    try:
-        credentials = service_account.Credentials.from_service_account_info(
-            GOOGLE_DRIVE_CREDENTIALS, 
-            scopes=SCOPES
-        )
-        return build('drive', 'v3', credentials=credentials)
-    except Exception as e:
-        st.error(f"❌ Gagal otentikasi Google Drive. Error: {e}")
-        return None
-
-def upload_file_to_drive(service, file_bytes, filename, folder_id):
-    """Mengupload data file (bytes) ke Google Drive."""
-    try:
-        # Metadata file dengan parents untuk menentukan folder tujuan
-        file_metadata = {
-            'name': filename,
-            'parents': [folder_id]
-        }
-        
-        media = MediaIoBaseUpload(
-            io.BytesIO(file_bytes),
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            resumable=True
-        )
-
-        # Upload ke Google Drive - PERBAIKAN: HAPUS includeItemsFromAllDrives
-        file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='webViewLink',
-            supportsAllDrives=True  # ← HANYA gunakan ini saja
-        ).execute()
-                          
-        return True, f"File berhasil diupload. [Lihat di Drive]({file.get('webViewLink')})"
-    except Exception as e:
-        return False, f"Gagal mengupload file ke Google Drive. Error: {e}"
-
-# --- FUNGSI KONVERSI XML (Dari converter_ui_13.py) ---
-def convert_to_xml(excel_path, output_xml_path, company_name_unused=None):
-    """
-    Mengkonversi file Excel ke format XML e-Faktur.
-    """
-    try:
-        # Baca sheet yang diperlukan dari file Excel
-        df_faktur = pd.read_excel(excel_path, sheet_name='Faktur')
-        df_detail = pd.read_excel(excel_path, sheet_name='DetailFaktur')
-        
-        # Isi semua nilai kosong dengan string kosong
-        df_faktur = df_faktur.fillna('')
-        df_detail = df_detail.fillna('')
-
-        # Perbaikan pengolahan tanggal
-        df_faktur['Tanggal Faktur'] = pd.to_datetime(
-            df_faktur['Tanggal Faktur'], 
-            format='%d/%m/%Y',
-            errors='coerce'
-        )
-        df_faktur['Tanggal Faktur'] = df_faktur['Tanggal Faktur'].dt.strftime('%Y-%m-%d')
-
-        # Perbaikan kuantitas
-        df_detail['Jumlah Barang Jasa'] = pd.to_numeric(
-            df_detail['Jumlah Barang Jasa'], 
-            errors='coerce'
-        ).round(2)
-
-        # Konversi dan format ulang kolom-kolom
-        df_faktur['Baris'] = df_faktur['Baris'].astype(str)
-        df_faktur['Kode Transaksi'] = df_faktur['Kode Transaksi'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(2)
-        df_faktur['NPWP/NIK Pembeli'] = df_faktur['NPWP/NIK Pembeli'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(16)
-        df_faktur['Nomor Dokumen Pembeli'] = df_faktur['Nomor Dokumen Pembeli'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(16)
-        df_faktur['ID TKU Pembeli'] = df_faktur['ID TKU Pembeli'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(22)
-        
-        df_detail['Baris'] = df_detail['Baris'].astype(str)
-        df_detail['Kode Barang Jasa'] = df_detail['Kode Barang Jasa'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(6)
-
-        # Perbaikan untuk kolom numerik
-        numeric_cols_no_decimal = ['Total Diskon', 'DPP Nilai Lain', 'Tarif PPN', 'PPN', 'Tarif PPnBM', 'PPnBM']
-        for col in numeric_cols_no_decimal:
-            df_detail[col] = df_detail[col].replace('', '0').astype(float).round(0).astype(int).astype(str)
-
-        # Format kolom dengan desimal
-        decimal_cols = ['Harga Satuan', 'DPP']
-        for col in decimal_cols:
-            series = df_detail[col].replace('', '0').astype(float)
-            df_detail[col] = series.apply(
-                lambda x: str(int(x)) if x == round(x) 
-                else '{:.2f}'.format(round(x, 2))
-            )
-
-        df_detail['Jumlah Barang Jasa'] = df_detail['Jumlah Barang Jasa'].astype(str).str.replace(r'\.00', '', regex=True)
-        
-        # Bersihkan data
-        df_faktur = df_faktur[df_faktur['Baris'] != 'END']
-        df_detail = df_detail[df_detail['Baris'] != 'END']
-
-        # Ambil NPWP penjual dari ID TKU Penjual
-        id_tku_penjual_str = str(df_faktur['ID TKU Penjual'].iloc[0]).strip()
-        npwp_penjual = id_tku_penjual_str[:16].zfill(16)
-
-        # Buat root element
-        root = ET.Element("TaxInvoiceBulk")
-        root.set("xmlns:xsd", "http://www.w3.org/2001/XMLSchema")
-        root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
-
-        tin = ET.SubElement(root, "TIN")
-        tin.text = npwp_penjual 
-        
-        list_of_tax_invoice = ET.SubElement(root, "ListOfTaxInvoice")
-
-        # Iterasi setiap baris di Faktur
-        for _, row in df_faktur.iterrows():
-            tax_invoice = ET.SubElement(list_of_tax_invoice, "TaxInvoice")
-
-            # Format tanggal
-            tanggal_faktur = row['Tanggal Faktur']
-            if pd.isna(tanggal_faktur):
-                formatted_date = ""
-            elif isinstance(tanggal_faktur, datetime):
-                formatted_date = tanggal_faktur.strftime('%Y-%m-%d')
-            else:
-                try:
-                    date_obj = pd.to_datetime(tanggal_faktur)
-                    formatted_date = date_obj.strftime('%Y-%m-%d')
-                except:
-                    formatted_date = str(tanggal_faktur).split()[0]
-                    
-            ET.SubElement(tax_invoice, "TaxInvoiceDate").text = formatted_date
-            
-            ET.SubElement(tax_invoice, "TaxInvoiceOpt").text = row['Jenis Faktur']
-            ET.SubElement(tax_invoice, "TrxCode").text = str(row['Kode Transaksi'])
-            ET.SubElement(tax_invoice, "AddInfo").text = str(row['Keterangan Tambahan'])
-            ET.SubElement(tax_invoice, "CustomDoc").text = str(row['Dokumen Pendukung'])
-            ET.SubElement(tax_invoice, "CustomDocMonthYear").text = str(row['Period Dok Pendukung'])
-            ET.SubElement(tax_invoice, "RefDesc").text = str(row['Referensi'])
-            ET.SubElement(tax_invoice, "FacilityStamp").text = str(row['Cap Fasilitas'])
-            ET.SubElement(tax_invoice, "SellerIDTKU").text = str(row['ID TKU Penjual'])
-            ET.SubElement(tax_invoice, "BuyerTin").text = str(row['NPWP/NIK Pembeli'])
-            ET.SubElement(tax_invoice, "BuyerDocument").text = str(row['Jenis ID Pembeli'])
-            ET.SubElement(tax_invoice, "BuyerCountry").text = str(row['Negara Pembeli'])
-            ET.SubElement(tax_invoice, "BuyerDocumentNumber").text = str(row['Nomor Dokumen Pembeli'])
-            ET.SubElement(tax_invoice, "BuyerName").text = str(row['Nama Pembeli'])
-            ET.SubElement(tax_invoice, "BuyerAdress").text = str(row['Alamat Pembeli'])
-            ET.SubElement(tax_invoice, "BuyerEmail").text = str(row['Email Pembeli'])
-            ET.SubElement(tax_invoice, "BuyerIDTKU").text = str(row['ID TKU Pembeli'])
-
-            # Ambil detail barang/jasa yang sesuai
-            list_of_good_service = ET.SubElement(tax_invoice, "ListOfGoodService")
-            detail_rows = df_detail[df_detail['Baris'] == row['Baris']]
-
-            for _, detail_row in detail_rows.iterrows():
-                good_service = ET.SubElement(list_of_good_service, "GoodService")
-                ET.SubElement(good_service, "Opt").text = str(detail_row['Barang/Jasa'])
-                ET.SubElement(good_service, "Code").text = str(detail_row['Kode Barang Jasa'])
-                ET.SubElement(good_service, "Name").text = str(detail_row['Nama Barang/Jasa'])
-                ET.SubElement(good_service, "Unit").text = str(detail_row['Nama Satuan Ukur'])
-                ET.SubElement(good_service, "Price").text = str(detail_row['Harga Satuan'])
-                ET.SubElement(good_service, "Qty").text = str(detail_row['Jumlah Barang Jasa'])
-                ET.SubElement(good_service, "TotalDiscount").text = str(detail_row['Total Diskon'])
-                ET.SubElement(good_service, "TaxBase").text = str(detail_row['DPP'])
-                ET.SubElement(good_service, "OtherTaxBase").text = str(detail_row['DPP Nilai Lain'])
-                ET.SubElement(good_service, "VATRate").text = str(detail_row['Tarif PPN'])
-                ET.SubElement(good_service, "VAT").text = str(detail_row['PPN'])
-                ET.SubElement(good_service, "STLGRate").text = str(detail_row['Tarif PPnBM'])
-                ET.SubElement(good_service, "STLG").text = str(detail_row['PPnBM'])
-        
-        # Konversi ke XML dan simpan
-        xml_bytes = ET.tostring(root, encoding='utf-8')
-        with open(output_xml_path, "wb") as f:
-            f.write(xml_bytes)
-        
-        return True, f"Konversi Berhasil! File telah dibuat di:\n{output_xml_path}"
-    
-    except FileNotFoundError:
-        return False, "Error: File tidak ditemukan. Pastikan nama sheet sudah benar (Faktur dan DetailFaktur)."
-    except KeyError as e:
-        return False, f"Error: Kolom '{e.args[0]}' tidak ditemukan. Periksa nama kolom di Excel."
-    except Exception as e:
-        return False, f"Terjadi kesalahan: {e}"
-
-# --- FUNGSI KONVERSI EXCEL BYTES KE XML BYTES ---
-def convert_excel_bytes_to_xml(excel_bytes, company_name):
-    """
-    Konversi Excel bytes langsung ke XML bytes tanpa menyimpan file.
-    """
-    try:
-        # Simpan Excel bytes ke file sementara
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
-            tmp_file.write(excel_bytes)
-            tmp_path = tmp_file.name
-
-        # Konversi ke XML menggunakan fungsi yang ada
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.xml') as xml_tmp:
-            xml_path = xml_tmp.name
-
-        success, message = convert_to_xml(tmp_path, xml_path, company_name)
-        
-        if success:
-            # Baca XML bytes
-            with open(xml_path, 'rb') as f:
-                xml_bytes = f.read()
-            
-            # Hapus file temporary
-            os.unlink(tmp_path)
-            os.unlink(xml_path)
-            
-            return True, xml_bytes, "Konversi ke XML berhasil"
-        else:
-            # Hapus file temporary
-            os.unlink(tmp_path)
-            if os.path.exists(xml_path):
-                os.unlink(xml_path)
-            return False, None, message
-            
-    except Exception as e:
-        return False, None, f"Error konversi XML: {str(e)}"
 
 # --- DATA PERUSAHAAN ---
 COMPANY_DATA = {
@@ -448,6 +205,185 @@ def to_excel_bytes(df_faktur, df_detail):
         df_detail.to_excel(writer, sheet_name=NAMA_SHEET_DETAIL, index=False)
     return output.getvalue()
 
+# --- FUNGSI KONVERSI XML (Dari converter_ui_13.py) ---
+def convert_to_xml(excel_path, output_xml_path, company_name_unused=None):
+    """
+    Mengkonversi file Excel ke format XML e-Faktur.
+    """
+    try:
+        # Baca sheet yang diperlukan dari file Excel
+        df_faktur = pd.read_excel(excel_path, sheet_name='Faktur')
+        df_detail = pd.read_excel(excel_path, sheet_name='DetailFaktur')
+        
+        # Isi semua nilai kosong dengan string kosong
+        df_faktur = df_faktur.fillna('')
+        df_detail = df_detail.fillna('')
+
+        # Perbaikan pengolahan tanggal
+        df_faktur['Tanggal Faktur'] = pd.to_datetime(
+            df_faktur['Tanggal Faktur'], 
+            format='%d/%m/%Y',
+            errors='coerce'
+        )
+        df_faktur['Tanggal Faktur'] = df_faktur['Tanggal Faktur'].dt.strftime('%Y-%m-%d')
+
+        # Perbaikan kuantitas
+        df_detail['Jumlah Barang Jasa'] = pd.to_numeric(
+            df_detail['Jumlah Barang Jasa'], 
+            errors='coerce'
+        ).round(2)
+
+        # Konversi dan format ulang kolom-kolom
+        df_faktur['Baris'] = df_faktur['Baris'].astype(str)
+        df_faktur['Kode Transaksi'] = df_faktur['Kode Transaksi'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(2)
+        df_faktur['NPWP/NIK Pembeli'] = df_faktur['NPWP/NIK Pembeli'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(16)
+        df_faktur['Nomor Dokumen Pembeli'] = df_faktur['Nomor Dokumen Pembeli'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(16)
+        df_faktur['ID TKU Pembeli'] = df_faktur['ID TKU Pembeli'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(22)
+        
+        df_detail['Baris'] = df_detail['Baris'].astype(str)
+        df_detail['Kode Barang Jasa'] = df_detail['Kode Barang Jasa'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(6)
+
+        # Perbaikan untuk kolom numerik
+        numeric_cols_no_decimal = ['Total Diskon', 'DPP Nilai Lain', 'Tarif PPN', 'PPN', 'Tarif PPnBM', 'PPnBM']
+        for col in numeric_cols_no_decimal:
+            df_detail[col] = df_detail[col].replace('', '0').astype(float).round(0).astype(int).astype(str)
+
+        # Format kolom dengan desimal
+        decimal_cols = ['Harga Satuan', 'DPP']
+        for col in decimal_cols:
+            series = df_detail[col].replace('', '0').astype(float)
+            df_detail[col] = series.apply(
+                lambda x: str(int(x)) if x == round(x) 
+                else '{:.2f}'.format(round(x, 2))
+            )
+
+        df_detail['Jumlah Barang Jasa'] = df_detail['Jumlah Barang Jasa'].astype(str).str.replace(r'\.00', '', regex=True)
+        
+        # Bersihkan data
+        df_faktur = df_faktur[df_faktur['Baris'] != 'END']
+        df_detail = df_detail[df_detail['Baris'] != 'END']
+
+        # Ambil NPWP penjual dari ID TKU Penjual
+        id_tku_penjual_str = str(df_faktur['ID TKU Penjual'].iloc[0]).strip()
+        npwp_penjual = id_tku_penjual_str[:16].zfill(16)
+
+        # Buat root element
+        root = ET.Element("TaxInvoiceBulk")
+        root.set("xmlns:xsd", "http://www.w3.org/2001/XMLSchema")
+        root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+
+        tin = ET.SubElement(root, "TIN")
+        tin.text = npwp_penjual 
+        
+        list_of_tax_invoice = ET.SubElement(root, "ListOfTaxInvoice")
+
+        # Iterasi setiap baris di Faktur
+        for _, row in df_faktur.iterrows():
+            tax_invoice = ET.SubElement(list_of_tax_invoice, "TaxInvoice")
+
+            # Format tanggal
+            tanggal_faktur = row['Tanggal Faktur']
+            if pd.isna(tanggal_faktur):
+                formatted_date = ""
+            elif isinstance(tanggal_faktur, datetime):
+                formatted_date = tanggal_faktur.strftime('%Y-%m-%d')
+            else:
+                try:
+                    date_obj = pd.to_datetime(tanggal_faktur)
+                    formatted_date = date_obj.strftime('%Y-%m-%d')
+                except:
+                    formatted_date = str(tanggal_faktur).split()[0]
+                    
+            ET.SubElement(tax_invoice, "TaxInvoiceDate").text = formatted_date
+            
+            ET.SubElement(tax_invoice, "TaxInvoiceOpt").text = row['Jenis Faktur']
+            ET.SubElement(tax_invoice, "TrxCode").text = str(row['Kode Transaksi'])
+            ET.SubElement(tax_invoice, "AddInfo").text = str(row['Keterangan Tambahan'])
+            ET.SubElement(tax_invoice, "CustomDoc").text = str(row['Dokumen Pendukung'])
+            ET.SubElement(tax_invoice, "CustomDocMonthYear").text = str(row['Period Dok Pendukung'])
+            ET.SubElement(tax_invoice, "RefDesc").text = str(row['Referensi'])
+            ET.SubElement(tax_invoice, "FacilityStamp").text = str(row['Cap Fasilitas'])
+            ET.SubElement(tax_invoice, "SellerIDTKU").text = str(row['ID TKU Penjual'])
+            ET.SubElement(tax_invoice, "BuyerTin").text = str(row['NPWP/NIK Pembeli'])
+            ET.SubElement(tax_invoice, "BuyerDocument").text = str(row['Jenis ID Pembeli'])
+            ET.SubElement(tax_invoice, "BuyerCountry").text = str(row['Negara Pembeli'])
+            ET.SubElement(tax_invoice, "BuyerDocumentNumber").text = str(row['Nomor Dokumen Pembeli'])
+            ET.SubElement(tax_invoice, "BuyerName").text = str(row['Nama Pembeli'])
+            ET.SubElement(tax_invoice, "BuyerAdress").text = str(row['Alamat Pembeli'])
+            ET.SubElement(tax_invoice, "BuyerEmail").text = str(row['Email Pembeli'])
+            ET.SubElement(tax_invoice, "BuyerIDTKU").text = str(row['ID TKU Pembeli'])
+
+            # Ambil detail barang/jasa yang sesuai
+            list_of_good_service = ET.SubElement(tax_invoice, "ListOfGoodService")
+            detail_rows = df_detail[df_detail['Baris'] == row['Baris']]
+
+            for _, detail_row in detail_rows.iterrows():
+                good_service = ET.SubElement(list_of_good_service, "GoodService")
+                ET.SubElement(good_service, "Opt").text = str(detail_row['Barang/Jasa'])
+                ET.SubElement(good_service, "Code").text = str(detail_row['Kode Barang Jasa'])
+                ET.SubElement(good_service, "Name").text = str(detail_row['Nama Barang/Jasa'])
+                ET.SubElement(good_service, "Unit").text = str(detail_row['Nama Satuan Ukur'])
+                ET.SubElement(good_service, "Price").text = str(detail_row['Harga Satuan'])
+                ET.SubElement(good_service, "Qty").text = str(detail_row['Jumlah Barang Jasa'])
+                ET.SubElement(good_service, "TotalDiscount").text = str(detail_row['Total Diskon'])
+                ET.SubElement(good_service, "TaxBase").text = str(detail_row['DPP'])
+                ET.SubElement(good_service, "OtherTaxBase").text = str(detail_row['DPP Nilai Lain'])
+                ET.SubElement(good_service, "VATRate").text = str(detail_row['Tarif PPN'])
+                ET.SubElement(good_service, "VAT").text = str(detail_row['PPN'])
+                ET.SubElement(good_service, "STLGRate").text = str(detail_row['Tarif PPnBM'])
+                ET.SubElement(good_service, "STLG").text = str(detail_row['PPnBM'])
+        
+        # Konversi ke XML dan simpan
+        xml_bytes = ET.tostring(root, encoding='utf-8')
+        with open(output_xml_path, "wb") as f:
+            f.write(xml_bytes)
+        
+        return True, f"Konversi Berhasil! File telah dibuat di:\n{output_xml_path}"
+    
+    except FileNotFoundError:
+        return False, "Error: File tidak ditemukan. Pastikan nama sheet sudah benar (Faktur dan DetailFaktur)."
+    except KeyError as e:
+        return False, f"Error: Kolom '{e.args[0]}' tidak ditemukan. Periksa nama kolom di Excel."
+    except Exception as e:
+        return False, f"Terjadi kesalahan: {e}"
+
+# --- FUNGSI KONVERSI EXCEL BYTES KE XML BYTES ---
+def convert_excel_bytes_to_xml(excel_bytes, company_name):
+    """
+    Konversi Excel bytes langsung ke XML bytes tanpa menyimpan file.
+    """
+    try:
+        # Simpan Excel bytes ke file sementara
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+            tmp_file.write(excel_bytes)
+            tmp_path = tmp_file.name
+
+        # Konversi ke XML menggunakan fungsi yang ada
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xml') as xml_tmp:
+            xml_path = xml_tmp.name
+
+        success, message = convert_to_xml(tmp_path, xml_path, company_name)
+        
+        if success:
+            # Baca XML bytes
+            with open(xml_path, 'rb') as f:
+                xml_bytes = f.read()
+            
+            # Hapus file temporary
+            os.unlink(tmp_path)
+            os.unlink(xml_path)
+            
+            return True, xml_bytes, "Konversi ke XML berhasil"
+        else:
+            # Hapus file temporary
+            os.unlink(tmp_path)
+            if os.path.exists(xml_path):
+                os.unlink(xml_path)
+            return False, None, message
+            
+    except Exception as e:
+        return False, None, f"Error konversi XML: {str(e)}"
+
 # --- STREAMLIT UTAMA ---
 def main():
     st.set_page_config(page_title="Alat Transformasi Data", layout="wide") 
@@ -489,7 +425,7 @@ def main():
     # --- Tombol Proses ---
     st.markdown("---")
     if is_company_valid and uploaded_file is not None:
-        if st.button("🚀 PROSES & SIMPAN FILE", key="proses_button_minimal", type="primary"):
+        if st.button("🚀 PROSES & DOWNLOAD FILE", key="proses_button_minimal", type="primary"):
             try:
                 # Baca file data
                 dtype_khusus = {k: str for k in KOLOM_STRING}
@@ -514,33 +450,20 @@ def main():
                     # Generate Excel file
                     excel_data_bytes = to_excel_bytes(df_faktur, df_detail)
 
-                    # Upload ke Google Drive
-                    drive_service = authenticate_gdrive()
-                    st.info("Sedang mengupload file ke Google Drive...")
-
-                    if drive_service:
-                        success, message = upload_file_to_drive(
-                            drive_service,
-                            excel_data_bytes,
-                            NAMA_FILE_OUTPUT,
-                            GOOGLE_DRIVE_FOLDER_ID
-                        )
-                        
-                        with st.container(border=True): 
-                            if success:
-                                st.balloons()
-                                st.success(f"🎉 **File BERHASIL DIPROSES dan diupload ke Google Drive!**")
-                                st.markdown(message)
-                            else:
-                                st.error(f"❌ Proses Gagal Upload ke Google Drive. {message}")
+                    # Tampilkan hasil sukses
+                    with st.container(border=True): 
+                        st.balloons()
+                        st.success(f"🎉 **File BERHASIL DIPROSES!**")
+                        st.info("Silakan unduh file hasil konversi dalam format Excel dan XML:")
 
                     # Tombol download Excel
                     st.download_button(
-                        label="⬇️ Unduh File E-Faktur XLSX (Lokal)",
+                        label="⬇️ Unduh File E-Faktur XLSX",
                         data=excel_data_bytes,
                         file_name=NAMA_FILE_OUTPUT,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="final_xlsx_download"
+                        key="final_xlsx_download",
+                        type="primary"
                     )
 
                     # Tombol download XML
