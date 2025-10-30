@@ -642,29 +642,38 @@ def show_data_transformation():
             st.error("❌ Tidak ada perusahaan yang terdaftar dengan data lengkap. Silakan tambah perusahaan terlebih dahulu di menu 'Kelola Perusahaan'.")
             return
         
-        # Tampilkan selectbox hanya dengan perusahaan valid
+        # Buat opsi dengan placeholder kosong di awal
+        company_options = [""] + valid_companies  # Tambahkan opsi kosong di awal
+        
+        # Tampilkan selectbox dengan default kosong
         selected_company_name = st.selectbox(
             "Pilih Data Penjual (Perusahaan Anda):",
-            options=valid_companies,
-            index=0,
+            options=company_options,
+            index=0,  # Index 0 adalah opsi kosong
+            format_func=lambda x: "Pilih perusahaan..." if x == "" else x,  # Tampilkan placeholder untuk opsi kosong
             key="company_select_main"
         )
         
-        # Dapatkan info perusahaan
-        company_info = get_company_info(selected_company_name)
-        
-        if not company_info:
-            st.error("❌ Data perusahaan tidak valid. Silakan pilih perusahaan lain.")
-            return
-        
-        # Tampilkan info perusahaan yang dipilih
-        st.success(f"✅ **{selected_company_name}**")
-        st.caption(f"""
-            **NPWP Penjual (TIN):** `{company_info['TIN']}`
-            **ID TKU Penjual:** `{company_info['IDTKU']}`
-        """)
-        
-        is_company_valid = True
+        # Jika yang dipilih adalah opsi kosong
+        if selected_company_name == "":
+            st.warning("⚠️ Silakan pilih perusahaan terlebih dahulu.")
+            company_info = None
+            is_company_valid = False
+        else:
+            # Dapatkan info perusahaan
+            company_info = get_company_info(selected_company_name)
+            
+            if not company_info:
+                st.error("❌ Data perusahaan tidak valid. Silakan pilih perusahaan lain.")
+                is_company_valid = False
+            else:
+                # Tampilkan info perusahaan yang dipilih
+                st.success(f"✅ **{selected_company_name}**")
+                st.caption(f"""
+                    **NPWP Penjual (TIN):** `{company_info['TIN']}`
+                    **ID TKU Penjual:** `{company_info['IDTKU']}`
+                """)
+                is_company_valid = True
         
         # Tombol untuk menambah perusahaan baru
         st.markdown("---")
