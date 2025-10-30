@@ -1,5 +1,5 @@
-# costum_excel_UI_v2_1_dynamic_button.py
-# File dengan tombol dinamis PROSES → DOWNLOAD FILE
+# costum_excel_UI_v2_1_with_company_add.py
+# File dengan fitur tambah company baru yang langsung update session state
 
 import pandas as pd
 import numpy as np
@@ -18,12 +18,11 @@ NAMA_FILE_DASAR = 'Custom_Column.xlsx'
 NAMA_SHEET_FAKTUR = 'Faktur'
 NAMA_SHEET_DETAIL = 'DetailFaktur'
 HEADER_ROW_DATA = 6
-JUMLAH_PER_HALAMAN = 20 
 
 # Daftar kolom yang harus dipastikan berformat TEXT (string)
 KOLOM_STRING = ['ID TKU PENJUAL', 'NPWP', 'NITKU PEMBELI', 'KODE BARANG/ JASA (CORETAX)']
 
-# --- PEMETAAN KOLOM FAKTUR ---
+# --- PEMETAAN KOLOM ---
 MAPPING_KOLOM_FAKTUR = {
     'Baris': 'Baris',
     'Date': 'Tanggal Faktur',
@@ -45,7 +44,6 @@ MAPPING_KOLOM_FAKTUR = {
     'NITKU PEMBELI': 'ID TKU Pembeli'
 }
 
-# --- PEMETAAN KOLOM DETAIL FAKTUR ---
 MAPPING_KOLOM_DETAIL = {
     'Baris': 'Baris',
     'JENIS BARANG/ JASA (CORETAX)': 'Barang/Jasa',
@@ -64,11 +62,14 @@ MAPPING_KOLOM_DETAIL = {
 }
 
 # --- FUNGSI MANAJEMEN DATA PERUSAHAAN ---
-def load_company_data():
-    """Memuat data perusahaan dari session state atau default"""
+def init_company_data():
+    """Initialize company data dalam session state"""
     if 'company_data' not in st.session_state:
         st.session_state.company_data = {
-            "Pilih Perusahaan": {"TIN": "", "IDTKU": ""},
+            "Pilih Perusahaan": {
+                "TIN": "",
+                "IDTKU": ""
+            },
             "PT. Citraguna Lestari": {
                 "TIN": "0313555997451000",
                 "IDTKU": "0313555997451000000000"
@@ -78,69 +79,97 @@ def load_company_data():
                 "IDTKU": "0933679607416000000000"
             }
         }
+
+def get_company_data():
+    """Mendapatkan data perusahaan dari session state"""
+    init_company_data()
     return st.session_state.company_data
 
-def add_company(company_name, tin, idtku):
-    """Menambah perusahaan baru"""
-    company_data = load_company_data()
-    
-    if company_name in company_data:
-        return False, "Perusahaan sudah ada!"
-    
-    if not company_name.strip() or not tin.strip() or not idtku.strip():
-        return False, "Semua field harus diisi!"
-    
-    if len(tin) != 16 or not tin.isdigit():
-        return False, "TIN harus 16 digit angka!"
-    
-    if len(idtku) != 22 or not idtku.isdigit():
-        return False, "IDTKU harus 22 digit angka!"
-    
-    company_data[company_name] = {"TIN": tin, "IDTKU": idtku}
-    return True, "Perusahaan berhasil ditambahkan!"
+def add_new_company(company_name, tin, idtku):
+    """Menambah perusahaan baru dan langsung update session state"""
+    try:
+        # Validasi input
+        if not company_name or not company_name.strip():
+            return False, "Nama perusahaan tidak boleh kosong!"
+        
+        if not tin or not tin.strip():
+            return False, "TIN tidak boleh kosong!"
+        
+        if not idtku or not idtku.strip():
+            return False, "IDTKU tidak boleh kosong!"
+        
+        # Validasi format TIN (16 digit angka)
+        if len(tin) != 16 or not tin.isdigit():
+            return False, "TIN harus 16 digit angka!"
+        
+        # Validasi format IDTKU (22 digit angka)
+        if len(idtku) != 22 or not idtku.isdigit():
+            return False, "IDTKU harus 22 digit angka!"
+        
+        # Cek duplikasi nama perusahaan
+        company_data = get_company_data()
+        if company_name in company_data:
+            return False, f"Perusahaan '{company_name}' sudah ada!"
+        
+        # Tambahkan perusahaan baru ke session state
+        company_data[company_name] = {
+            "TIN": tin,
+            "IDTKU": idtku
+        }
+        
+        # Update session state
+        st.session_state.company_data = company_data
+        
+        return True, f"Perusahaan '{company_name}' berhasil ditambahkan!"
+        
+    except Exception as e:
+        return False, f"Error: {str(e)}"
 
-def edit_company(old_name, new_name, tin, idtku):
-    """Mengedit perusahaan yang sudah ada"""
-    company_data = load_company_data()
+def show_add_company_modal():
+    """Menampilkan modal/popup untuk menambah perusahaan baru"""
+    with st.form("add_company_form", clear_on_submit=True):
+        st.subheader("➕ Tambah Perusahaan Baru")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            company_name = st.text_input(
+                "Nama Perusahaan*",
+                placeholder="Contoh: PT. Contoh Indonesia",
+                help="Masukkan nama perusahaan lengkap"
+            )
+            tin = st.text_input(
+                "TIN (16 digit)*", 
+                placeholder="0313555997451000",
+                max_chars=16,
+                help="TIN harus 16 digit angka"
+            )
+        
+        with col2:
+            idtku = st.text_input(
+                "IDTKU (22 digit)*", 
+                placeholder="0313555997451000000000", 
+                max_chars=22,
+                help="IDTKU harus 22 digit angka"
+            )
+        
+        # Informasi format
+        st.caption("💡 *Field wajib diisi")
+        st.info("📝 **Format yang benar:**\n- TIN: 16 digit angka\n- IDTKU: 22 digit angka")
+        
+        col_submit, col_cancel = st.columns(2)
+        with col_submit:
+            submitted = st.form_submit_button("💾 Simpan Perusahaan", type="primary", use_container_width=True)
+        with col_cancel:
+            if st.form_submit_button("❌ Batal", use_container_width=True):
+                return False, "Dibatalkan"
+        
+        if submitted:
+            return add_new_company(company_name.strip(), tin.strip(), idtku.strip())
     
-    if old_name not in company_data:
-        return False, "Perusahaan tidak ditemukan!"
-    
-    if not new_name.strip() or not tin.strip() or not idtku.strip():
-        return False, "Semua field harus diisi!"
-    
-    if len(tin) != 16 or not tin.isdigit():
-        return False, "TIN harus 16 digit angka!"
-    
-    if len(idtku) != 22 or not idtku.isdigit():
-        return False, "IDTKU harus 22 digit angka!"
-    
-    if old_name != new_name:
-        del company_data[old_name]
-    
-    company_data[new_name] = {"TIN": tin, "IDTKU": idtku}
-    return True, "Perusahaan berhasil diupdate!"
-
-def delete_company(company_name):
-    """Menghapus perusahaan"""
-    company_data = load_company_data()
-    
-    if company_name not in company_data:
-        return False, "Perusahaan tidak ditemukan!"
-    
-    if company_name == "Pilih Perusahaan":
-        return False, "Tidak dapat menghapus opsi default!"
-    
-    del company_data[company_name]
-    return True, "Perusahaan berhasil dihapus!"
+    return False, ""
 
 # --- FUNGSI AUTO-DOWNLOAD ---
-def create_download_link(file_data, filename, mime_type):
-    """Membuat link download otomatis"""
-    b64 = base64.b64encode(file_data).decode()
-    href = f'<a href="data:{mime_type};base64,{b64}" download="{filename}">Download {filename}</a>'
-    return href
-
 def auto_download_files(excel_data, xml_data, excel_filename, xml_filename):
     """Fungsi untuk auto-download kedua file"""
     # Untuk Excel
@@ -284,7 +313,6 @@ def convert_to_xml(excel_path, output_xml_path, company_name_unused=None):
         df_detail = df_detail.fillna('')
 
         # ... (kode konversi XML lengkap dari sebelumnya)
-        # Untuk demo, kita buat XML sederhana dulu
         root = ET.Element("TaxInvoiceBulk")
         tin = ET.SubElement(root, "TIN")
         tin.text = "0313555997451000"
@@ -331,13 +359,16 @@ def convert_excel_bytes_to_xml(excel_bytes, company_name):
 def main():
     st.set_page_config(page_title="Alat Transformasi Data Faktur", layout="wide", page_icon="📊") 
     
-    # Inisialisasi session state untuk menyimpan hasil proses
+    # Inisialisasi session state
     if 'processed_data' not in st.session_state:
         st.session_state.processed_data = None
     if 'processing_complete' not in st.session_state:
         st.session_state.processing_complete = False
     if 'file_names' not in st.session_state:
         st.session_state.file_names = {}
+    
+    # Initialize company data
+    init_company_data()
     
     # Sidebar untuk navigasi
     with st.sidebar:
@@ -347,6 +378,13 @@ def main():
             ["🏠 Transformasi Data", "🏢 Kelola Perusahaan"],
             index=0
         )
+        
+        st.markdown("---")
+        st.caption("**Fitur:**")
+        st.caption("✅ Konversi Excel ke XML")
+        st.caption("✅ Tambah perusahaan baru")
+        st.caption("✅ Auto-download file")
+        st.caption("✅ Validasi format data")
     
     if menu_option == "🏠 Transformasi Data":
         show_data_transformation()
@@ -366,7 +404,9 @@ def show_data_transformation():
     col_comp, col_file = st.columns([1, 1.5]) 
     
     with col_comp:
-        company_data = load_company_data()
+        company_data = get_company_data()
+        
+        # Tampilkan selectbox untuk memilih perusahaan
         selected_company_name = st.selectbox(
             "Pilih Data Penjual (Perusahaan Anda):",
             options=list(company_data.keys()),
@@ -375,6 +415,7 @@ def show_data_transformation():
         )
         company_info = company_data[selected_company_name]
         
+        # Tampilkan info perusahaan yang dipilih
         st.caption(f"""
             **NPWP Penjual (TIN):** `{company_info['TIN']}`
             **ID TKU Penjual:** `{company_info['IDTKU']}`
@@ -383,6 +424,25 @@ def show_data_transformation():
         is_company_valid = selected_company_name != "Pilih Perusahaan"
         if not is_company_valid:
             st.error("⚠️ Mohon pilih nama perusahaan yang valid.")
+        
+        # Tombol untuk menambah perusahaan baru
+        st.markdown("---")
+        st.caption("💡 Perusahaan tidak ada di list?")
+        if st.button("➕ Tambah Perusahaan Baru", key="add_company_btn", use_container_width=True):
+            st.session_state.show_add_company = True
+        
+        # Modal untuk menambah perusahaan baru
+        if st.session_state.get('show_add_company', False):
+            success, message = show_add_company_modal()
+            if success:
+                st.success(message)
+                st.session_state.show_add_company = False
+                st.rerun()
+            elif message and message != "Dibatalkan":
+                st.error(message)
+            elif message == "Dibatalkan":
+                st.session_state.show_add_company = False
+                st.rerun()
 
     with col_file:
         uploaded_file = st.file_uploader("Unggah File Data Mentah (*.xlsx, *.xls, *.csv)", type=['xlsx', 'xls', 'csv'])
@@ -424,7 +484,7 @@ def show_data_transformation():
                 
                 st.success("✅ File berhasil didownload!")
                 
-                # Opsional: Reset state setelah download
+                # Reset state setelah download
                 st.session_state.processing_complete = False
                 st.session_state.processed_data = None
 
@@ -482,10 +542,80 @@ def process_data(uploaded_file, selected_company_name, company_info):
         return False
 
 def show_company_management():
-    """Menampilkan UI manajemen perusahaan (disederhanakan)"""
+    """Menampilkan UI manajemen perusahaan yang lebih lengkap"""
     st.subheader("🏢 Manajemen Data Perusahaan")
-    st.info("Fitur manajemen perusahaan - implementasi lengkap tersedia di versi sebelumnya")
-    # ... (implementasi manajemen perusahaan dari kode sebelumnya)
+    
+    # Tampilkan daftar perusahaan yang ada
+    company_data = get_company_data()
+    
+    st.write("### Daftar Perusahaan Terdaftar")
+    
+    # Filter out "Pilih Perusahaan"
+    company_list = [name for name in company_data.keys() if name != "Pilih Perusahaan"]
+    
+    if company_list:
+        # Tampilkan dalam dataframe
+        display_data = []
+        for name in company_list:
+            display_data.append({
+                "Nama Perusahaan": name,
+                "TIN": company_data[name]["TIN"],
+                "IDTKU": company_data[name]["IDTKU"]
+            })
+        
+        df = pd.DataFrame(display_data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        # Statistik
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Total Perusahaan", len(company_list))
+        with col2:
+            st.metric("Data Tersedia", "100%")
+    else:
+        st.info("📝 Belum ada perusahaan yang terdaftar.")
+    
+    st.markdown("---")
+    
+    # Form untuk menambah perusahaan baru
+    st.write("### Tambah Perusahaan Baru")
+    
+    with st.form("add_company_management_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            new_company_name = st.text_input(
+                "Nama Perusahaan*",
+                placeholder="Contoh: PT. Contoh Indonesia"
+            )
+            new_tin = st.text_input(
+                "TIN (16 digit)*", 
+                placeholder="0313555997451000",
+                max_chars=16
+            )
+        
+        with col2:
+            new_idtku = st.text_input(
+                "IDTKU (22 digit)*", 
+                placeholder="0313555997451000000000", 
+                max_chars=22
+            )
+        
+        st.caption("💡 *Field wajib diisi. TIN harus 16 digit, IDTKU harus 22 digit.")
+        
+        submitted = st.form_submit_button("💾 Tambah Perusahaan", type="primary")
+        
+        if submitted:
+            success, message = add_new_company(new_company_name.strip(), new_tin.strip(), new_idtku.strip())
+            if success:
+                st.success(message)
+                st.rerun()
+            else:
+                st.error(message)
+
+# Initialize session state untuk modal
+if 'show_add_company' not in st.session_state:
+    st.session_state.show_add_company = False
 
 if __name__ == "__main__":
     main()
