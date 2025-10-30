@@ -1,5 +1,5 @@
 # costum_excel_UI_v2_1_with_company_add.py
-# File dengan fitur tambah company baru yang langsung update session state
+# File dengan fix sistem perusahaan yang benar
 
 import pandas as pd
 import numpy as np
@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 import tempfile
 import json
 import base64
+from xml.dom import minidom
 
 # --- KONFIGURASI FILE ---
 NAMA_FILE_DASAR = 'Custom_Column.xlsx'
@@ -84,6 +85,44 @@ def get_company_data():
     """Mendapatkan data perusahaan dari session state"""
     init_company_data()
     return st.session_state.company_data
+
+def get_valid_companies():
+    """Mendapatkan list perusahaan yang valid (bukan 'Pilih Perusahaan' dan data lengkap)"""
+    company_data = get_company_data()
+    valid_companies = []
+    
+    for name, info in company_data.items():
+        if (name != "Pilih Perusahaan" and 
+            info.get("TIN") and info.get("IDTKU") and
+            len(str(info.get("TIN", ""))) == 16 and
+            len(str(info.get("IDTKU", ""))) == 22):
+            valid_companies.append(name)
+    
+    return valid_companies
+
+def get_company_info(company_name):
+    """
+    Mendapatkan info perusahaan dengan validasi ketat.
+    Return None jika tidak valid, tidak ada fallback otomatis.
+    """
+    company_data = get_company_data()
+    
+    # Validasi 1: Bukan "Pilih Perusahaan"
+    if company_name == "Pilih Perusahaan":
+        return None
+    
+    # Validasi 2: Perusahaan ada di database
+    if company_name not in company_data:
+        return None
+    
+    # Validasi 3: Data lengkap (TIN dan IDTKU)
+    info = company_data[company_name]
+    if (not info.get("TIN") or not info.get("IDTKU") or
+        len(str(info.get("TIN", ""))) != 16 or
+        len(str(info.get("IDTKU", ""))) != 22):
+        return None
+    
+    return info
 
 def add_new_company(company_name, tin, idtku):
     """Menambah perusahaan baru dan langsung update session state"""
@@ -302,24 +341,208 @@ def to_excel_bytes(df_faktur, df_detail):
         df_detail.to_excel(writer, sheet_name=NAMA_SHEET_DETAIL, index=False)
     return output.getvalue()
 
-# --- FUNGSI KONVERSI XML ---
-def convert_to_xml(excel_path, output_xml_path, company_name_unused=None):
-    """Mengkonversi file Excel ke format XML e-Faktur."""
+# --- FUNGSI KONVERSI XML YANG DIPERBAIKI ---
+def format_date_for_xml(date_string):
+    """Format tanggal dari DD/MM/YYYY ke YYYY-MM-DD untuk XML"""
     try:
+        if isinstance(date_string, str) and '/' in date_string:
+            day, month, year = date_string.split('/')
+            return f"{year}-{month}-{day}"
+        elif isinstance(date_string, str) and '-' in date_string:
+            return date_string
+        else:
+            return pd.Timestamp.now().strftime("%Y-%m-%d")
+    except:
+        return pd.Timestamp.now().strftime("%Y-%m-%d")
+
+def format_number_xml(value):
+    """Format number untuk XML (remove decimal jika .00)"""
+    try:
+        if pd.isna(value) or value == '':
+            return "0"
+        num = float(value)
+        if num == int(num):
+            return str(int(num))
+        else:
+            return str(num)
+    except:
+        return "0"
+
+def map_jenis_id_to_xml(jenis_id):
+    """Map Jenis ID ke format XML"""
+    mapping = {
+        '01': 'TIN',
+        '02': 'NIK', 
+        '03': 'PASPOR',
+        '04': 'KITAS/KITAP',
+        '05': 'LAINNYA'
+    }
+    return mapping.get(jenis_id, 'TIN')
+
+def convert_to_xml(excel_path, output_xml_path, company_name):
+    """Mengkonversi file Excel ke format XML e-Faktur yang lengkap sesuai contoh."""
+    try:
+        # Baca data dari Excel
         df_faktur = pd.read_excel(excel_path, sheet_name='Faktur')
         df_detail = pd.read_excel(excel_path, sheet_name='DetailFaktur')
         
+        # Handle NaN values
         df_faktur = df_faktur.fillna('')
         df_detail = df_detail.fillna('')
-
-        # ... (kode konversi XML lengkap dari sebelumnya)
-        root = ET.Element("TaxInvoiceBulk")
-        tin = ET.SubElement(root, "TIN")
-        tin.text = "0313555997451000"
         
-        xml_bytes = ET.tostring(root, encoding='utf-8')
+        # Dapatkan info perusahaan dengan validasi
+        company_info = get_company_info(company_name)
+        if not company_info:
+            return False, f"Data perusahaan '{company_name}' tidak valid"
+        
+        # Buat root element dengan namespace
+        root = Element("TaxInvoiceBulk")
+        root.set("xmlns:xsd", "http://www.w3.org/2001/XMLSchema")
+        root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+        
+        # TIN Perusahaan
+        tin = SubElement(root, "TIN")
+        tin.text = company_info["TIN"]
+        
+        # List of Tax Invoices
+        list_of_tax_invoice = SubElement(root, "ListOfTaxInvoice")
+        
+        # Process setiap faktur
+        for _, faktur_row in df_faktur.iterrows():
+            tax_invoice = SubElement(list_of_tax_invoice, "TaxInvoice")
+            
+            # Tanggal Faktur
+            tax_invoice_date = SubElement(tax_invoice, "TaxInvoiceDate")
+            tax_invoice_date.text = format_date_for_xml(faktur_row['Tanggal Faktur'])
+            
+            # Jenis Faktur
+            tax_invoice_opt = SubElement(tax_invoice, "TaxInvoiceOpt")
+            tax_invoice_opt.text = str(faktur_row['Jenis Faktur'] or 'Normal')
+            
+            # Kode Transaksi
+            trx_code = SubElement(tax_invoice, "TrxCode")
+            trx_code.text = str(faktur_row['Kode Transaksi'] or '01')
+            
+            # Additional Information
+            add_info = SubElement(tax_invoice, "AddInfo")
+            add_info.text = str(faktur_row['Keterangan Tambahan'] or '')
+            
+            # Document Number (CustomDoc)
+            custom_doc = SubElement(tax_invoice, "CustomDoc")
+            custom_doc.text = str(faktur_row['Dokumen Pendukung'] or '')
+            
+            # Period Dok Pendukung
+            custom_doc_month_year = SubElement(tax_invoice, "CustomDocMonthYear")
+            custom_doc_month_year.text = str(faktur_row['Period Dok Pendukung'] or '')
+            
+            # Referensi
+            ref_desc = SubElement(tax_invoice, "RefDesc")
+            ref_desc.text = str(faktur_row['Referensi'] or '')
+            
+            # Cap Fasilitas
+            facility_stamp = SubElement(tax_invoice, "FacilityStamp")
+            facility_stamp.text = str(faktur_row['Cap Fasilitas'] or '')
+            
+            # Seller IDTKU
+            seller_idtku = SubElement(tax_invoice, "SellerIDTKU")
+            seller_idtku.text = company_info["IDTKU"]
+            
+            # === INFORMASI PEMBELI ===
+            buyer_tin = SubElement(tax_invoice, "BuyerTin")
+            buyer_tin.text = str(faktur_row['NPWP/NIK Pembeli'] or '')
+            
+            buyer_document = SubElement(tax_invoice, "BuyerDocument")
+            buyer_document.text = map_jenis_id_to_xml(str(faktur_row['Jenis ID Pembeli'] or ''))
+            
+            buyer_country = SubElement(tax_invoice, "BuyerCountry")
+            buyer_country.text = str(faktur_row['Negara Pembeli'] or 'IDN')
+            
+            buyer_document_number = SubElement(tax_invoice, "BuyerDocumentNumber")
+            buyer_document_number.text = str(faktur_row['Nomor Dokumen Pembeli'] or '')
+            
+            buyer_name = SubElement(tax_invoice, "BuyerName")
+            buyer_name.text = str(faktur_row['Nama Pembeli'] or '')
+            
+            buyer_address = SubElement(tax_invoice, "BuyerAdress")  # Perhatikan typo 'Adress'
+            buyer_address.text = str(faktur_row['Alamat Pembeli'] or '')
+            
+            buyer_email = SubElement(tax_invoice, "BuyerEmail")
+            buyer_email.text = str(faktur_row['Email Pembeli'] or '')
+            
+            buyer_idtku = SubElement(tax_invoice, "BuyerIDTKU")
+            buyer_idtku.text = str(faktur_row['ID TKU Pembeli'] or '')
+            
+            # === DETAIL BARANG/JASA ===
+            list_of_good_service = SubElement(tax_invoice, "ListOfGoodService")
+            
+            # Ambil detail barang untuk faktur ini
+            baris_faktur = faktur_row['Baris']
+            detail_rows = df_detail[df_detail['Baris'] == baris_faktur]
+            
+            for _, detail_row in detail_rows.iterrows():
+                good_service = SubElement(list_of_good_service, "GoodService")
+                
+                # Tipe Barang/Jasa (A=Barang, B=Jasa)
+                opt = SubElement(good_service, "Opt")
+                barang_jasa = str(detail_row['Barang/Jasa'] or 'Barang')
+                opt.text = "A" if 'barang' in barang_jasa.lower() else "B"
+                
+                # Kode Barang
+                code = SubElement(good_service, "Code")
+                code.text = str(detail_row['Kode Barang Jasa'] or '000000')
+                
+                # Nama Barang
+                name = SubElement(good_service, "Name")
+                name.text = str(detail_row['Nama Barang/Jasa'] or '')
+                
+                # Satuan
+                unit = SubElement(good_service, "Unit")
+                unit.text = str(detail_row['Nama Satuan Ukur'] or '')
+                
+                # Harga Satuan
+                price = SubElement(good_service, "Price")
+                price.text = format_number_xml(detail_row['Harga Satuan'])
+                
+                # Quantity
+                qty = SubElement(good_service, "Qty")
+                qty.text = format_number_xml(detail_row['Jumlah Barang Jasa'])
+                
+                # Total Diskon
+                total_discount = SubElement(good_service, "TotalDiscount")
+                total_discount.text = format_number_xml(detail_row['Total Diskon'])
+                
+                # Tax Base (DPP)
+                tax_base = SubElement(good_service, "TaxBase")
+                tax_base.text = format_number_xml(detail_row['DPP'])
+                
+                # Other Tax Base (DPP Nilai Lain)
+                other_tax_base = SubElement(good_service, "OtherTaxBase")
+                other_tax_base.text = format_number_xml(detail_row['DPP Nilai Lain'])
+                
+                # VAT Rate (Tarif PPN)
+                vat_rate = SubElement(good_service, "VATRate")
+                vat_rate.text = format_number_xml(detail_row['Tarif PPN'])
+                
+                # VAT Amount (PPN)
+                vat = SubElement(good_service, "VAT")
+                vat.text = format_number_xml(detail_row['PPN'])
+                
+                # STLG Rate (Tarif PPnBM)
+                stlg_rate = SubElement(good_service, "STLGRate")
+                stlg_rate.text = format_number_xml(detail_row['Tarif PPnBM'])
+                
+                # STLG Amount (PPnBM)
+                stlg = SubElement(good_service, "STLG")
+                stlg.text = format_number_xml(detail_row['PPnBM'])
+        
+        # Format XML dengan pretty print
+        rough_string = tostring(root, encoding='utf-8')
+        reparsed = minidom.parseString(rough_string)
+        pretty_xml = reparsed.toprettyxml(indent="  ", encoding='utf-8')
+        
+        # Simpan file XML
         with open(output_xml_path, "wb") as f:
-            f.write(xml_bytes)
+            f.write(pretty_xml)
         
         return True, "Konversi XML berhasil!"
     
@@ -353,6 +576,11 @@ def convert_excel_bytes_to_xml(excel_bytes, company_name):
             return False, None, message
             
     except Exception as e:
+        # Cleanup temporary files
+        if 'tmp_path' in locals() and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        if 'xml_path' in locals() and os.path.exists(xml_path):
+            os.unlink(xml_path)
         return False, None, f"Error konversi XML: {str(e)}"
 
 # --- STREAMLIT UTAMA ---
@@ -366,6 +594,8 @@ def main():
         st.session_state.processing_complete = False
     if 'file_names' not in st.session_state:
         st.session_state.file_names = {}
+    if 'show_add_company' not in st.session_state:
+        st.session_state.show_add_company = False
     
     # Initialize company data
     init_company_data()
@@ -404,26 +634,36 @@ def show_data_transformation():
     col_comp, col_file = st.columns([1, 1.5]) 
     
     with col_comp:
-        company_data = get_company_data()
+        # Dapatkan hanya perusahaan yang valid
+        valid_companies = get_valid_companies()
         
-        # Tampilkan selectbox untuk memilih perusahaan
+        if not valid_companies:
+            st.error("❌ Tidak ada perusahaan yang terdaftar dengan data lengkap. Silakan tambah perusahaan terlebih dahulu di menu 'Kelola Perusahaan'.")
+            return
+        
+        # Tampilkan selectbox hanya dengan perusahaan valid
         selected_company_name = st.selectbox(
             "Pilih Data Penjual (Perusahaan Anda):",
-            options=list(company_data.keys()),
+            options=valid_companies,
             index=0,
             key="company_select_main"
         )
-        company_info = company_data[selected_company_name]
+        
+        # Dapatkan info perusahaan
+        company_info = get_company_info(selected_company_name)
+        
+        if not company_info:
+            st.error("❌ Data perusahaan tidak valid. Silakan pilih perusahaan lain.")
+            return
         
         # Tampilkan info perusahaan yang dipilih
+        st.success(f"✅ **{selected_company_name}**")
         st.caption(f"""
             **NPWP Penjual (TIN):** `{company_info['TIN']}`
             **ID TKU Penjual:** `{company_info['IDTKU']}`
         """)
         
-        is_company_valid = selected_company_name != "Pilih Perusahaan"
-        if not is_company_valid:
-            st.error("⚠️ Mohon pilih nama perusahaan yang valid.")
+        is_company_valid = True
         
         # Tombol untuk menambah perusahaan baru
         st.markdown("---")
@@ -487,10 +727,20 @@ def show_data_transformation():
                 # Reset state setelah download
                 st.session_state.processing_complete = False
                 st.session_state.processed_data = None
+    else:
+        if not is_company_valid:
+            st.warning("⚠️ Silakan pilih perusahaan yang valid terlebih dahulu.")
+        if not uploaded_file:
+            st.warning("⚠️ Silakan unggah file data terlebih dahulu.")
 
 def process_data(uploaded_file, selected_company_name, company_info):
     """Memproses data yang diupload dan simpan ke session state"""
     try:
+        # Validasi company info
+        if not company_info or not company_info.get("TIN") or not company_info.get("IDTKU"):
+            st.error("❌ Data perusahaan tidak valid.")
+            return False
+            
         # Baca file data
         dtype_khusus = {k: str for k in KOLOM_STRING}
         dtype_khusus.update({'Sales Price': np.float64, 'Qty Net': np.float64, 'NET DISKON': np.float64})
@@ -550,13 +800,13 @@ def show_company_management():
     
     st.write("### Daftar Perusahaan Terdaftar")
     
-    # Filter out "Pilih Perusahaan"
-    company_list = [name for name in company_data.keys() if name != "Pilih Perusahaan"]
+    # Filter hanya perusahaan yang valid
+    valid_companies = get_valid_companies()
     
-    if company_list:
+    if valid_companies:
         # Tampilkan dalam dataframe
         display_data = []
-        for name in company_list:
+        for name in valid_companies:
             display_data.append({
                 "Nama Perusahaan": name,
                 "TIN": company_data[name]["TIN"],
@@ -567,13 +817,17 @@ def show_company_management():
         st.dataframe(df, use_container_width=True, hide_index=True)
         
         # Statistik
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Perusahaan", len(company_list))
+            st.metric("Total Perusahaan Valid", len(valid_companies))
         with col2:
-            st.metric("Data Tersedia", "100%")
+            total_companies = len([k for k in company_data.keys() if k != "Pilih Perusahaan"])
+            st.metric("Total Terdaftar", total_companies)
+        with col3:
+            invalid_count = total_companies - len(valid_companies)
+            st.metric("Data Tidak Valid", invalid_count)
     else:
-        st.info("📝 Belum ada perusahaan yang terdaftar.")
+        st.info("📝 Belum ada perusahaan yang terdaftar dengan data lengkap.")
     
     st.markdown("---")
     
@@ -612,10 +866,6 @@ def show_company_management():
                 st.rerun()
             else:
                 st.error(message)
-
-# Initialize session state untuk modal
-if 'show_add_company' not in st.session_state:
-    st.session_state.show_add_company = False
 
 if __name__ == "__main__":
     main()
