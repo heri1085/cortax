@@ -68,7 +68,7 @@ def init_company_data():
     """Initialize company data dalam session state"""
     if 'company_data' not in st.session_state:
         st.session_state.company_data = {
-            "Pilih Perusahaan": {
+            "": {  # Default kosong
                 "TIN": "",
                 "IDTKU": ""
             },
